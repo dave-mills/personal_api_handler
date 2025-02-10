@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Carbon\AbstractTranslator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -30,31 +31,49 @@ class ZoomService
 
     }
 
-    public function getMeetings()
-    {
-        return Cache::get('meetings');
-    }
-
-
     // get list of cloud recordings
-    public function getCloudRecordings()
+    public function getCloudRecordings(int $year = null)
     {
         $accessToken = $this->getAccessToken();
+
         $users = $this->getUsers();
         $meetings = collect([]);
 
-        $dates = [
-            Carbon::now()->format('Y-m-d'),
-            Carbon::now()->subMonths(1)->format('Y-m-d'),
-            Carbon::now()->subMonths(2)->format('Y-m-d'),
-            Carbon::now()->subMonths(3)->format('Y-m-d'),
-            Carbon::now()->subMonths(4)->format('Y-m-d'),
-            Carbon::now()->subMonths(5)->format('Y-m-d'),
-            Carbon::now()->subMonths(6)->format('Y-m-d'),
-            Carbon::now()->subMonths(7)->format('Y-m-d'),
-            Carbon::now()->subMonths(8)->format('Y-m-d'),
-            Carbon::now()->subMonths(9)->format('Y-m-d'),
-        ];
+        // get everything for the given year
+        if ($year) {
+            $dates = [
+                Carbon::create($year + 1, 1, 1)->format('Y-m-d'),
+                Carbon::create($year, 12, 1)->format('Y-m-d'),
+                Carbon::create($year, 11, 1)->format('Y-m-d'),
+                Carbon::create($year, 10, 1)->format('Y-m-d'),
+                Carbon::create($year, 9, 1)->format('Y-m-d'),
+                Carbon::create($year, 8, 1)->format('Y-m-d'),
+                Carbon::create($year, 7, 1)->format('Y-m-d'),
+                Carbon::create($year, 6, 1)->format('Y-m-d'),
+                Carbon::create($year, 5, 1)->format('Y-m-d'),
+                Carbon::create($year, 4, 1)->format('Y-m-d'),
+                Carbon::create($year, 3, 1)->format('Y-m-d'),
+                Carbon::create($year, 2, 1)->format('Y-m-d'),
+                Carbon::create($year, 1, 1)->format('Y-m-d'),
+            ];
+        } else {
+
+            $dates = [
+                Carbon::now()->format('Y-m-d'),
+                Carbon::now()->subMonths(1)->format('Y-m-d'),
+                Carbon::now()->subMonths(2)->format('Y-m-d'),
+                Carbon::now()->subMonths(3)->format('Y-m-d'),
+                Carbon::now()->subMonths(4)->format('Y-m-d'),
+                Carbon::now()->subMonths(5)->format('Y-m-d'),
+                Carbon::now()->subMonths(6)->format('Y-m-d'),
+                Carbon::now()->subMonths(7)->format('Y-m-d'),
+                Carbon::now()->subMonths(8)->format('Y-m-d'),
+                Carbon::now()->subMonths(9)->format('Y-m-d'),
+                Carbon::now()->subMonths(10)->format('Y-m-d'),
+                Carbon::now()->subMonths(11)->format('Y-m-d'),
+                Carbon::now()->subMonths(12)->format('Y-m-d'),
+            ];
+        }
 
         dump($dates);
 
@@ -62,18 +81,21 @@ class ZoomService
 
             dump($user['display_name']);
 
-            for ($i = 0; $i < 9; $i++) {
+            for ($i = 0; $i < 12; $i++) {
 
                 $response = Http::withToken($accessToken)
                     ->get("{$this->endpoint}/users/{$user['id']}/recordings", [
                         'page_size' => 300,
                         'from' => $dates[$i + 1],
-                        'to' => $dates[$i]
+                        'to' => $dates[$i],
                     ])
                     ->throw()
                     ->json();
 
-                $meetings[] = collect($response['meetings']);
+                dump('Fetched ' . count($response['meetings']) . ' recordings for ' . $user['display_name'] . ' in ' . $dates[$i + 1] . ' to ' . $dates[$i]);
+
+                $userMeetings = collect($response['meetings']);
+                $meetings[] = $userMeetings;
             }
         }
 
@@ -96,9 +118,10 @@ class ZoomService
             return $cachedToken['access_token'];
         }
 
+
         // otherwise, get a new token. There is no refresh token flow for zoom server-to-server OAuth.
         $response = Http::withHeaders([
-            'Authorization' => 'Basic ' . base64_encode(config('services.zoom.client_id') . ':' . config('services.zoom.client_secret'))
+            'Authorization' => 'Basic ' . base64_encode(config('services.zoom.client_id') . ':' . config('services.zoom.client_secret')),
         ])
             ->asForm()
             ->post("https://zoom.us/oauth/token", [
@@ -113,6 +136,21 @@ class ZoomService
         Cache::set('zoomToken', $response);
 
         return $response['access_token'];
+
+    }
+
+    public function deleteMeetingRecordings(int $meetingId): bool
+    {
+        $test = Http::withToken($this->getAccessToken())
+            ->get("{$this->endpoint}/meetings/{$meetingId}/recordings");
+
+        $request = Http::withToken($this->getAccessToken())
+            ->delete("{$this->endpoint}/meetings/{$meetingId}/recordings");
+
+        dump($request->status());
+
+        return $request->status();
+
 
     }
 

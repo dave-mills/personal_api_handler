@@ -47,6 +47,12 @@ return [
         'dropbox' => [
             'driver' => 'dropbox',
             'token' => env('DROPBOX_APP_TOKEN'),
+            'case_sensitive' => false,
+        ],
+        'dropbox_local' => [
+            'driver' => 'local',
+            'root' => env('DROPBOX_LOCAL_APP_PATH'),
+            'throw' => false,
         ],
     ],
 
